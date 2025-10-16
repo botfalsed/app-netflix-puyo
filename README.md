@@ -1,50 +1,145 @@
-# Welcome to your Expo app 👋
+# Netflix Clone App 🎬
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Una aplicación clone de Netflix desarrollada con React Native (Expo) para el frontend y Node.js/Express con PostgreSQL para el backend.
 
-## Get started
+## Estructura del Proyecto
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+├── frontend/          # Aplicación React Native (Expo)
+├── backend/           # Servidor Node.js/Express + PostgreSQL
+├── .github/           # Configuración CI/CD (opcional)
+├── .gitignore         # Archivos ignorados por Git
+├── README.md          # Este archivo
+└── package.json       # Scripts para gestionar ambos proyectos
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Requisitos Previos
 
-## Learn more
+- Node.js >= 18.0.0
+- npm >= 8.0.0
+- PostgreSQL
+- Expo CLI (para desarrollo móvil)
 
-To learn more about developing your project with Expo, look at the following resources:
+## Instalación
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### Opción 1: Instalación completa (recomendada)
+```bash
+# Instalar dependencias de ambos proyectos
+npm run install:all
+```
 
-## Join the community
+### Opción 2: Instalación individual
+```bash
+# Instalar dependencias del frontend
+npm run install:frontend
 
-Join our community of developers creating universal apps.
+# Instalar dependencias del backend
+npm run install:backend
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Configuración
+
+### Backend
+1. Navega a la carpeta backend:
+   ```bash
+   cd backend
+   ```
+
+2. Copia el archivo de configuración:
+   ```bash
+   cp .env.example .env
+   ```
+
+3. Configura las variables de entorno en `.env`:
+   ```
+   DB_HOST=localhost
+   DB_PORT=5432
+   DB_NAME=netflixdb
+   DB_USER=tu_usuario
+   DB_PASSWORD=tu_contraseña
+   JWT_SECRET=tu_jwt_secret
+   PORT=3000
+   ```
+
+4. Configura la base de datos PostgreSQL:
+   ```bash
+   npm run setup-db
+   ```
+
+### Frontend
+El frontend está configurado para conectarse al backend en `http://localhost:3000`. Si cambias el puerto del backend, actualiza las configuraciones correspondientes en los archivos de servicios.
+
+## Desarrollo
+
+### Ejecutar ambos proyectos simultáneamente
+```bash
+npm run dev
+```
+
+### Ejecutar proyectos individualmente
+
+#### Frontend (React Native)
+```bash
+npm run dev:frontend
+# o
+cd frontend && npm start
+```
+
+#### Backend (Node.js/Express)
+```bash
+npm run dev:backend
+# o
+cd backend && npm run dev
+```
+
+## Scripts Disponibles
+
+- `npm run install:all` - Instala dependencias de ambos proyectos
+- `npm run dev` - Ejecuta frontend y backend simultáneamente
+- `npm run dev:frontend` - Solo frontend
+- `npm run dev:backend` - Solo backend
+- `npm run build` - Construye el proyecto frontend
+- `npm run test` - Ejecuta tests de ambos proyectos
+- `npm run clean` - Limpia node_modules de ambos proyectos
+
+## Tecnologías Utilizadas
+
+### Frontend
+- React Native (Expo)
+- TypeScript
+- Expo Router (navegación basada en archivos)
+- Expo Components
+
+### Backend
+- Node.js
+- Express.js
+- PostgreSQL
+- JWT para autenticación
+- bcrypt para hash de contraseñas
+
+## Funcionalidades
+
+- 🔐 Autenticación de usuarios
+- 👤 Gestión de perfiles múltiples
+- 🎬 Catálogo de películas y series
+- 🔍 Búsqueda de contenido
+- 📱 Interfaz responsive
+- 🎨 UI moderna inspirada en Netflix
+
+## Desarrollo
+
+Puedes comenzar a desarrollar editando los archivos en:
+- **Frontend**: `frontend/app/` (usa enrutamiento basado en archivos)
+- **Backend**: `backend/` (estructura de API REST)
+
+## Contribuir
+
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+## Licencia
+
+Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
