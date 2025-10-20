@@ -12,15 +12,22 @@ import {
   getMovieGenres,
   getTVGenres,
   getMovieDetails,
-  getTVShowDetails,
-  type Movie,
-  type TVShow,
-  type Genre,
-  type MovieDetails,
-  type TVShowDetails
+  getTVShowDetails
 } from './tmdb';
-import { getImageUrl, API_BASE_URL } from '../constants/Api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Movie, TVShow, Genre, MovieDetails, TVShowDetails } from '../types';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.18.21:4000';
+import { getToken } from './token';
+import { BaseDatos, toDropboxRawUrl } from '../data/localContent';
+
+function isWebPlayableUrl(u: string): boolean {
+  return /(\.mp4|\.webm|\.m3u8)(\?|#|$)/i.test(u);
+}
+
+function makePlayableUrl(u: string): string {
+  const raw = toDropboxRawUrl(u);
+  if (isWebPlayableUrl(raw)) return raw;
+  return `${API_BASE_URL}/api/stream/mp4?url=${encodeURIComponent(raw)}`;
+}
 
 // Interfaces adaptadas para la aplicación
 export interface Content {
@@ -129,8 +136,8 @@ class TMDBContentService {
       release_year: new Date(movie.release_date || '2024').getFullYear(),
       duration_minutes: 120, // Valor por defecto
       rating: movie.vote_average?.toFixed(1) || '0.0',
-      thumbnail_url: getImageUrl(movie.poster_path, 'w500'),
-      backdrop_url: getImageUrl(movie.backdrop_path, 'w1280'),
+      thumbnail_url: movie.poster_path || '',
+      backdrop_url: movie.backdrop_path || '',
       video_url: '', // Se obtendría de otra API
       trailer_url: '', // Se obtendría de otra API
       is_featured: movie.vote_average ? movie.vote_average > 7.5 : false,
@@ -157,8 +164,8 @@ class TMDBContentService {
       release_year: new Date(tvShow.first_air_date || '2024').getFullYear(),
       seasons: 1, // Valor por defecto
       rating: tvShow.vote_average?.toFixed(1) || '0.0',
-      thumbnail_url: getImageUrl(tvShow.poster_path, 'w500'),
-      backdrop_url: getImageUrl(tvShow.backdrop_path, 'w1280'),
+      thumbnail_url: tvShow.poster_path || '',
+      backdrop_url: tvShow.backdrop_path || '',
       video_url: '', // Se obtendría de otra API
       trailer_url: '', // Se obtendría de otra API
       is_featured: tvShow.vote_average ? tvShow.vote_average > 7.5 : false,
@@ -173,330 +180,44 @@ class TMDBContentService {
   // Obtener contenido destacado
   async getFeaturedContent(): Promise<Content | null> {
     try {
-      const trendingMovies = await getTrendingMovies('day');
-      if (trendingMovies.length > 0) {
-        const featured = this.movieToContent(trendingMovies[0]);
-        featured.is_featured = true;
-        return featured;
-      }
-      return null;
+      const local = await this.getLocalContent();
+      if (!local || local.length === 0) return null;
+      const sorted = [...local].sort((a, b) => (b.release_year || 0) - (a.release_year || 0));
+      const featured = { ...sorted[0], is_featured: true };
+      return featured;
     } catch (error) {
-      console.error('Error getting featured content:', error);
+      console.error('Error getting featured content (local):', error);
       return null;
     }
   }
 
   // Obtener categorías
   async getCategories(): Promise<Category[]> {
-    const categories: Category[] = [
-      { id: 1, name: 'Tendencias', display_order: 1, content_count: 20 },
-      { id: 2, name: 'Populares', display_order: 2, content_count: 20 },
-      { id: 3, name: 'Mejor Valoradas', display_order: 3, content_count: 20 },
-      { id: 4, name: 'Acción', display_order: 4, content_count: 20 },
-      { id: 5, name: 'Comedia', display_order: 5, content_count: 20 },
-      { id: 6, name: 'Drama', display_order: 6, content_count: 20 },
-      { id: 7, name: 'Series Populares', display_order: 7, content_count: 20 },
-      { id: 8, name: 'Series Mejor Valoradas', display_order: 8, content_count: 20 }
-    ];
-    return categories;
+    const local = await this.getLocalContent();
+    const genreCounts = new Map<string, number>();
+    local.forEach(item => {
+      const name = (item.genre || 'Otros').trim();
+      genreCounts.set(name, (genreCounts.get(name) || 0) + 1);
+    });
+    let displayOrder = 1;
+    return Array.from(genreCounts.entries()).map(([name, count], index) => ({
+      id: index + 1,
+      name,
+      display_order: displayOrder++,
+      content_count: count
+    }));
   }
 
   // Obtener contenido por categoría
   async getContentByCategory(categoryName: string, limit: number = 20): Promise<Content[]> {
     try {
-      console.log(`🔍 Loading category: ${categoryName} with limit: ${limit}`);
-      
-      // Asegurar que los géneros estén cargados
-      if (this.movieGenres.length === 0 || this.tvGenres.length === 0) {
-        console.log('🔄 Genres not loaded, loading now...');
-        await this.loadGenres();
-      }
-
-      let content: Content[] = [];
-
-      switch (categoryName) {
-        case 'Tendencias':
-          const trendingMovies = await getTrendingMovies('day');
-          const trendingTVShows = await getTrendingTVShows('day');
-          content = [
-            ...trendingMovies.results.slice(0, limit / 2).map(movie => this.movieToContent(movie)),
-            ...trendingTVShows.results.slice(0, limit / 2).map(tv => this.tvShowToContent(tv))
-          ];
-          break;
-
-        case 'Populares':
-          const popularMovies = await getPopularMovies();
-          content = popularMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          break;
-
-        case 'Mejor Valoradas':
-          const topRatedMovies = await getTopRatedMovies();
-          content = topRatedMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          break;
-
-        case 'Acción':
-          const actionGenre = this.movieGenres.find(g => g.name === 'Acción');
-          console.log('🎬 Action category - Genre found:', actionGenre, 'Total genres:', this.movieGenres.length);
-          if (actionGenre) {
-            console.log('🎬 Fetching action movies with genre ID:', actionGenre.id);
-            const actionMovies = await discoverMovies({ with_genres: actionGenre.id.toString() });
-            console.log('🎬 Action movies response:', actionMovies.results?.length || 0, 'movies');
-            content = actionMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          } else {
-            console.log('🎬 Action genre not found, using fallback');
-            // Fallback: usar películas populares si no se encuentra el género
-            const fallbackMovies = await getPopularMovies();
-            content = fallbackMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          console.log('🎬 Final Action content count:', content.length);
-          break;
-
-        case 'Comedia':
-          const comedyGenre = this.movieGenres.find(g => g.name === 'Comedia');
-          console.log('😂 Comedy category - Genre found:', comedyGenre, 'Total genres:', this.movieGenres.length);
-          if (comedyGenre) {
-            console.log('😂 Fetching comedy movies with genre ID:', comedyGenre.id);
-            const comedyMovies = await discoverMovies({ with_genres: comedyGenre.id.toString() });
-            console.log('😂 Comedy movies response:', comedyMovies.results?.length || 0, 'movies');
-            content = comedyMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          } else {
-            console.log('😂 Comedy genre not found, using fallback');
-            // Fallback: usar películas mejor valoradas si no se encuentra el género
-            const fallbackMovies = await getTopRatedMovies();
-            content = fallbackMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          console.log('😂 Final Comedy content count:', content.length);
-          break;
-
-        case 'Drama':
-          const dramaGenre = this.movieGenres.find(g => g.name === 'Drama');
-          console.log('Drama genre found:', dramaGenre, 'Available genres:', this.movieGenres);
-          if (dramaGenre) {
-            const dramaMovies = await discoverMovies({ with_genres: dramaGenre.id.toString() });
-            content = dramaMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          } else {
-            // Fallback: usar películas en tendencia si no se encuentra el género
-            const fallbackMovies = await getTrendingMovies();
-            content = fallbackMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Series Populares':
-          const popularTVShows = await getPopularTVShows();
-          content = popularTVShows.results.slice(0, limit).map(tv => this.tvShowToContent(tv));
-          break;
-
-        case 'Series Mejor Valoradas':
-          const topRatedTVShows = await getTopRatedTVShows();
-          content = topRatedTVShows.results.slice(0, limit).map(tv => this.tvShowToContent(tv));
-          break;
-
-        // Nuevas categorías de géneros de películas
-        case 'Aventura':
-          const adventureGenre = this.movieGenres.find(g => g.name === 'Aventura');
-          if (adventureGenre) {
-            const adventureMovies = await discoverMovies({ with_genres: adventureGenre.id.toString() });
-            content = adventureMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Animación':
-          const animationGenre = this.movieGenres.find(g => g.name === 'Animación');
-          if (animationGenre) {
-            const animationMovies = await discoverMovies({ with_genres: animationGenre.id.toString() });
-            content = animationMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Comedias':
-          const comedyGenreNew = this.movieGenres.find(g => g.name === 'Comedia');
-          if (comedyGenreNew) {
-            const comedyMovies = await discoverMovies({ with_genres: comedyGenreNew.id.toString() });
-            content = comedyMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Crimen':
-          const crimeGenre = this.movieGenres.find(g => g.name === 'Crimen');
-          if (crimeGenre) {
-            const crimeMovies = await discoverMovies({ with_genres: crimeGenre.id.toString() });
-            content = crimeMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Documentales':
-          const documentaryGenre = this.movieGenres.find(g => g.name === 'Documental');
-          if (documentaryGenre) {
-            const documentaryMovies = await discoverMovies({ with_genres: documentaryGenre.id.toString() });
-            content = documentaryMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Dramas':
-          const dramaGenreNew = this.movieGenres.find(g => g.name === 'Drama');
-          if (dramaGenreNew) {
-            const dramaMovies = await discoverMovies({ with_genres: dramaGenreNew.id.toString() });
-            content = dramaMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Familia':
-          const familyGenre = this.movieGenres.find(g => g.name === 'Familia');
-          if (familyGenre) {
-            const familyMovies = await discoverMovies({ with_genres: familyGenre.id.toString() });
-            content = familyMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Fantasía':
-          const fantasyGenre = this.movieGenres.find(g => g.name === 'Fantasía');
-          if (fantasyGenre) {
-            const fantasyMovies = await discoverMovies({ with_genres: fantasyGenre.id.toString() });
-            content = fantasyMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Historia':
-          const historyGenre = this.movieGenres.find(g => g.name === 'Historia');
-          if (historyGenre) {
-            const historyMovies = await discoverMovies({ with_genres: historyGenre.id.toString() });
-            content = historyMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Terror':
-          const horrorGenre = this.movieGenres.find(g => g.name === 'Terror');
-          if (horrorGenre) {
-            const horrorMovies = await discoverMovies({ with_genres: horrorGenre.id.toString() });
-            content = horrorMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Música':
-          const musicGenre = this.movieGenres.find(g => g.name === 'Música');
-          if (musicGenre) {
-            const musicMovies = await discoverMovies({ with_genres: musicGenre.id.toString() });
-            content = musicMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Misterio':
-          const mysteryGenre = this.movieGenres.find(g => g.name === 'Misterio');
-          if (mysteryGenre) {
-            const mysteryMovies = await discoverMovies({ with_genres: mysteryGenre.id.toString() });
-            content = mysteryMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Romance':
-          const romanceGenre = this.movieGenres.find(g => g.name === 'Romance');
-          if (romanceGenre) {
-            const romanceMovies = await discoverMovies({ with_genres: romanceGenre.id.toString() });
-            content = romanceMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Ciencia Ficción':
-          const sciFiGenre = this.movieGenres.find(g => g.name === 'Ciencia ficción');
-          if (sciFiGenre) {
-            const sciFiMovies = await discoverMovies({ with_genres: sciFiGenre.id.toString() });
-            content = sciFiMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Suspenso':
-        case 'Thriller':
-          const thrillerGenre = this.movieGenres.find(g => g.name === 'Suspense');
-          if (thrillerGenre) {
-            const thrillerMovies = await discoverMovies({ with_genres: thrillerGenre.id.toString() });
-            content = thrillerMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Guerra':
-          const warGenre = this.movieGenres.find(g => g.name === 'Bélica');
-          if (warGenre) {
-            const warMovies = await discoverMovies({ with_genres: warGenre.id.toString() });
-            content = warMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        case 'Western':
-          const westernGenre = this.movieGenres.find(g => g.name === 'Western');
-          if (westernGenre) {
-            const westernMovies = await discoverMovies({ with_genres: westernGenre.id.toString() });
-            content = westernMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-          }
-          break;
-
-        // Nuevas categorías de series
-        case 'Series de Acción y Aventura':
-          const actionAdventureTVGenre = this.tvGenres.find(g => g.name === 'Action & Adventure');
-          if (actionAdventureTVGenre) {
-            const actionAdventureTVShows = await discoverTVShows({ with_genres: actionAdventureTVGenre.id.toString() });
-            content = actionAdventureTVShows.results.slice(0, limit).map(tv => this.tvShowToContent(tv));
-          }
-          break;
-
-        case 'Series de Comedia':
-          const comedyTVGenre = this.tvGenres.find(g => g.name === 'Comedy');
-          if (comedyTVGenre) {
-            const comedyTVShows = await discoverTVShows({ with_genres: comedyTVGenre.id.toString() });
-            content = comedyTVShows.results.slice(0, limit).map(tv => this.tvShowToContent(tv));
-          }
-          break;
-
-        case 'Series de Drama':
-          const dramaTVGenre = this.tvGenres.find(g => g.name === 'Drama');
-          if (dramaTVGenre) {
-            const dramaTVShows = await discoverTVShows({ with_genres: dramaTVGenre.id.toString() });
-            content = dramaTVShows.results.slice(0, limit).map(tv => this.tvShowToContent(tv));
-          }
-          break;
-
-        case 'Series de Crimen':
-          const crimeTVGenre = this.tvGenres.find(g => g.name === 'Crime');
-          if (crimeTVGenre) {
-            const crimeTVShows = await discoverTVShows({ with_genres: crimeTVGenre.id.toString() });
-            content = crimeTVShows.results.slice(0, limit).map(tv => this.tvShowToContent(tv));
-          }
-          break;
-
-        case 'Series Documentales':
-          const documentaryTVGenre = this.tvGenres.find(g => g.name === 'Documentary');
-          if (documentaryTVGenre) {
-            const documentaryTVShows = await discoverTVShows({ with_genres: documentaryTVGenre.id.toString() });
-            content = documentaryTVShows.results.slice(0, limit).map(tv => this.tvShowToContent(tv));
-          }
-          break;
-
-        case 'Series de Misterio':
-          const mysteryTVGenre = this.tvGenres.find(g => g.name === 'Mystery');
-          if (mysteryTVGenre) {
-            const mysteryTVShows = await discoverTVShows({ with_genres: mysteryTVGenre.id.toString() });
-            content = mysteryTVShows.results.slice(0, limit).map(tv => this.tvShowToContent(tv));
-          }
-          break;
-
-        case 'Series de Ciencia Ficción y Fantasía':
-          const sciFiFantasyTVGenre = this.tvGenres.find(g => g.name === 'Sci-Fi & Fantasy');
-          if (sciFiFantasyTVGenre) {
-            const sciFiFantasyTVShows = await discoverTVShows({ with_genres: sciFiFantasyTVGenre.id.toString() });
-            content = sciFiFantasyTVShows.results.slice(0, limit).map(tv => this.tvShowToContent(tv));
-          }
-          break;
-
-        default:
-          console.warn(`Unknown category: ${categoryName}`);
-          // Fallback: usar contenido popular si no se encuentra la categoría
-          const fallbackMovies = await getPopularMovies();
-          content = fallbackMovies.results.slice(0, limit).map(movie => this.movieToContent(movie));
-      }
-
-      console.log(`Content loaded for ${categoryName}:`, content.length);
-      return content;
+      const local = await this.getLocalContent();
+      const filtered = local
+        .filter(item => (item.genre || 'Otros').trim() === categoryName)
+        .slice(0, limit);
+      return filtered;
     } catch (error) {
-      console.error(`Error getting content for category ${categoryName}:`, error);
+      console.error(`Error getting local content for category ${categoryName}:`, error);
       return [];
     }
   }
@@ -504,68 +225,36 @@ class TMDBContentService {
   // Obtener datos para la pantalla principal
   async getHomeData(profileId: number): Promise<HomeData | null> {
     try {
-      // Cargar géneros si no están cargados
-      if (this.movieGenres.length === 0 || this.tvGenres.length === 0) {
-        await this.loadGenres();
-      }
-
-      // Obtener datos básicos
-      const [featured, categories, continueWatching] = await Promise.all([
-        this.getFeaturedContent(),
+      // Construir datos del home usando solo contenido local
+      const [categories, featured, continueWatching] = await Promise.all([
         this.getCategories(),
+        this.getFeaturedContent(),
         this.getContinueWatchingForProfile(profileId, 5)
       ]);
 
-      // Cargar contenido para categorías prioritarias primero
-      const priorityCategories = ['Tendencias', 'Populares', 'Mejor Valoradas'];
+      // Cargar contenido de todas las categorías
       const categoryContent: Record<string, Content[]> = {};
-
-      // Cargar categorías prioritarias
-      for (const categoryName of priorityCategories) {
-        try {
-          categoryContent[categoryName] = await this.getContentByCategory(categoryName, 20);
-        } catch (error) {
-          console.error(`Error loading priority category ${categoryName}:`, error);
-          categoryContent[categoryName] = [];
-        }
-      }
-
-      // Cargar el resto de categorías de forma asíncrona
-      const remainingCategories = categories
-        .map(cat => cat.name)
-        .filter(name => !priorityCategories.includes(name));
-
-      // Cargar categorías restantes en paralelo con Promise.all para asegurar que se completen
-      const remainingCategoryPromises = remainingCategories.map(async (categoryName) => {
-        try {
-          const content = await this.getContentByCategory(categoryName, 20);
-          return { categoryName, content };
-        } catch (error) {
-          console.error(`Error loading category ${categoryName}:`, error);
-          return { categoryName, content: [] };
-        }
-      });
-
-      // Esperar a que todas las categorías restantes se carguen
-      const remainingResults = await Promise.all(remainingCategoryPromises);
-      
-      // Agregar los resultados al objeto categoryContent
-      remainingResults.forEach(({ categoryName, content }) => {
-        categoryContent[categoryName] = content;
-      });
-
-      console.log('🏠 Home data categories loaded:', Object.keys(categoryContent));
-      console.log('🏠 Total categories in categoryContent:', Object.keys(categoryContent).length);
+      await Promise.all(
+        categories.map(async (cat) => {
+          try {
+            const content = await this.getContentByCategory(cat.name, 20);
+            categoryContent[cat.name] = content;
+          } catch (err) {
+            console.error(`Error loading category ${cat.name}:`, err);
+            categoryContent[cat.name] = [];
+          }
+        })
+      );
 
       return {
         featured,
         categories,
         continueWatching,
-        watchlist: [], // Se implementaría con datos reales del perfil
+        watchlist: [],
         categoryContent
       };
     } catch (error) {
-      console.error('Error getting home data:', error);
+      console.error('Error getting home data (local):', error);
       return null;
     }
   }
@@ -573,21 +262,13 @@ class TMDBContentService {
   // Simular datos de "Continuar viendo" basados en el perfil
   async getContinueWatchingForProfile(profileId: number, limit: number = 10): Promise<ContinueWatchingItem[]> {
     try {
-      // Obtener contenido popular para simular "continuar viendo"
-      const popularMovies = await getPopularMovies();
-      const popularTVShows = await getPopularTVShows();
-      
-      // Mezclar películas y series
-      const mixedContent = [
-        ...popularMovies.results.slice(0, 3).map(movie => this.movieToContent(movie)),
-        ...popularTVShows.results.slice(0, 2).map(tv => this.tvShowToContent(tv))
-      ];
+      const local = await this.getLocalContent();
+      const mixedContent = local.slice(0, Math.max(limit, 10));
 
-      // Convertir a ContinueWatchingItem con datos simulados
       const continueWatchingItems: ContinueWatchingItem[] = mixedContent.slice(0, limit).map((content, index) => ({
         ...content,
-        progress_seconds: Math.floor(Math.random() * 3600) + 300, // Entre 5 minutos y 1 hora
-        last_watched: new Date(Date.now() - (index + 1) * 24 * 60 * 60 * 1000).toISOString(), // Últimos días
+        progress_seconds: Math.floor(Math.random() * 1800) + 120,
+        last_watched: new Date(Date.now() - (index + 1) * 24 * 60 * 60 * 1000).toISOString(),
         episode_title: content.type === 'series' ? `Episodio ${Math.floor(Math.random() * 10) + 1}` : undefined,
         season_number: content.type === 'series' ? Math.floor(Math.random() * 3) + 1 : undefined,
         episode_number: content.type === 'series' ? Math.floor(Math.random() * 10) + 1 : undefined,
@@ -595,7 +276,7 @@ class TMDBContentService {
 
       return continueWatchingItems;
     } catch (error) {
-      console.error('Error getting continue watching:', error);
+      console.error('Error getting continue watching (local):', error);
       return [];
     }
   }
@@ -604,7 +285,7 @@ class TMDBContentService {
     try {
       const response = await fetch(`${API_BASE_URL}/api/content/tmdb-watchlist/${profileId}`, {
         headers: {
-          'Authorization': `Bearer ${await AsyncStorage.getItem('token')}`,
+          'Authorization': `Bearer ${getToken() || ''}`,
           'Content-Type': 'application/json',
         },
       });
@@ -629,7 +310,7 @@ class TMDBContentService {
       const response = await fetch(`${API_BASE_URL}/api/content/tmdb-watchlist/${profileId}`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${await AsyncStorage.getItem('token')}`,
+          'Authorization': `Bearer ${getToken() || ''}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -639,7 +320,7 @@ class TMDBContentService {
           overview: movieDetails.overview,
           release_date: movieDetails.release_date,
           vote_average: movieDetails.vote_average,
-          genre_ids: movieDetails.genre_ids || movieDetails.genres?.map(g => g.id) || []
+          genre_ids: movieDetails.genres?.map(g => g.id) || []
         }),
       });
 
@@ -660,7 +341,7 @@ class TMDBContentService {
       const response = await fetch(`${API_BASE_URL}/api/content/tmdb-watchlist/${profileId}/${movieId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${await AsyncStorage.getItem('token')}`,
+          'Authorization': `Bearer ${getToken() || ''}`,
           'Content-Type': 'application/json',
         },
       });
@@ -681,7 +362,7 @@ class TMDBContentService {
     try {
       const response = await fetch(`${API_BASE_URL}/api/content/tmdb-watchlist/${profileId}/${movieId}/check`, {
         headers: {
-          'Authorization': `Bearer ${await AsyncStorage.getItem('token')}`,
+          'Authorization': `Bearer ${getToken() || ''}`,
           'Content-Type': 'application/json',
         },
       });
@@ -711,49 +392,41 @@ class TMDBContentService {
   }
 
   async getLocalContent(): Promise<Content[]> {
-    // Esta función devuelve contenido local si existe
-    // Por ahora retornamos un array vacío ya que todo el contenido viene de TMDB
-    return [];
+    try {
+      return BaseDatos.map((raw: any) => ({
+        id: Number(raw.id),
+        title: String(raw.titulo || ''),
+        description: String(raw.descripcion || ''),
+        type: 'movie',
+        genre: String(raw.genero || ''),
+        release_year: Number(raw.ano) || new Date().getFullYear(),
+        duration_minutes: undefined,
+        seasons: undefined,
+        rating: 'N/A',
+        thumbnail_url: String(raw.imagen || ''),
+        backdrop_url: String(raw.imagen || ''),
+        video_url: makePlayableUrl(String(raw.url || '')),
+        trailer_url: '',
+        is_featured: false,
+        categories: raw.genero ? [{ id: 0, name: String(raw.genero) }] : [],
+        created_at: new Date().toISOString(),
+      }));
+    } catch (error) {
+      console.error('Error mapeando contenido local:', error);
+      return [];
+    }
   }
 
   async getContentDetails(contentId: number, contentType?: string): Promise<Content | null> {
     try {
-      console.log('🔍 Buscando detalles para ID:', contentId, 'Tipo:', contentType);
-      
-      // Si tenemos el tipo, usarlo directamente
-      if (contentType === 'movie') {
-        console.log('🎬 Obteniendo como película (tipo especificado)...');
-        const movieDetails = await getMovieDetails(contentId);
-        console.log('✅ Película encontrada:', movieDetails.title);
-        return this.movieDetailsToContent(movieDetails);
-      } else if (contentType === 'series') {
-        console.log('📺 Obteniendo como serie (tipo especificado)...');
-        const tvDetails = await getTVShowDetails(contentId);
-        console.log('✅ Serie encontrada:', tvDetails.name);
-        return this.tvDetailsToContent(tvDetails);
+      const local = await this.getLocalContent();
+      const item = local.find(c => c.id === Number(contentId));
+      if (item) {
+        return item;
       }
-      
-      // Si no tenemos tipo, usar el método anterior (primero película, luego serie)
-      try {
-        console.log('🎬 Intentando obtener como película...');
-        const movieDetails = await getMovieDetails(contentId);
-        console.log('✅ Película encontrada:', movieDetails.title);
-        return this.movieDetailsToContent(movieDetails);
-      } catch (movieError) {
-        console.log('❌ No es película, intentando como serie...');
-        
-        // Si falla como película, intentamos como serie
-        try {
-          const tvDetails = await getTVShowDetails(contentId);
-          console.log('✅ Serie encontrada:', tvDetails.name);
-          return this.tvDetailsToContent(tvDetails);
-        } catch (tvError) {
-          console.error('❌ Error obteniendo detalles de contenido:', { movieError, tvError });
-          return null;
-        }
-      }
+      return null;
     } catch (error) {
-      console.error('❌ Error general obteniendo detalles de contenido:', error);
+      console.error('❌ Error obteniendo detalles de contenido (local):', error);
       return null;
     }
   }
@@ -770,8 +443,8 @@ class TMDBContentService {
       rating: movie.vote_average.toFixed(1),
       thumbnail_url: movie.poster_path || '',
       backdrop_url: movie.backdrop_path || '',
-      video_url: '', // Se podría implementar con videos de TMDB
-      trailer_url: '', // Se podría implementar con videos de TMDB
+      video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+      trailer_url: '',
       is_featured: movie.vote_average >= 8.0,
       categories: movie.genres.map(genre => ({
         id: genre.id,
@@ -793,8 +466,8 @@ class TMDBContentService {
       rating: tvShow.vote_average.toFixed(1),
       thumbnail_url: tvShow.poster_path || '',
       backdrop_url: tvShow.backdrop_path || '',
-      video_url: '', // Se podría implementar con videos de TMDB
-      trailer_url: '', // Se podría implementar con videos de TMDB
+      video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+      trailer_url: '',
       is_featured: tvShow.vote_average >= 8.0,
       categories: tvShow.genres.map(genre => ({
         id: genre.id,
@@ -805,8 +478,22 @@ class TMDBContentService {
   }
 
   async searchContent(searchTerm: string, limit: number = 20): Promise<Content[]> {
-    // Se implementaría usando la función de búsqueda de TMDB
-    return [];
+    try {
+      const local = await this.getLocalContent();
+      const term = searchTerm.trim().toLowerCase();
+      if (!term) return [];
+      const results = local.filter(item =>
+        item.title.toLowerCase().includes(term) ||
+        item.description.toLowerCase().includes(term) ||
+        item.genre.toLowerCase().includes(term) ||
+        (item.categories || []).some(c => c.name.toLowerCase().includes(term)) ||
+        String(item.release_year).includes(term)
+      );
+      return results.slice(0, limit);
+    } catch (error) {
+      console.error('Error buscando contenido local:', error);
+      return [];
+    }
   }
 
   async getSeriesEpisodes(seriesId: number, seasonNumber: number = 1): Promise<Episode[]> {

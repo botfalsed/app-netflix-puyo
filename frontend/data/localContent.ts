@@ -13,7 +13,11 @@ export interface LocalItem {
 // Convierte un enlace de compartición de Dropbox en un enlace directo de contenido
 export function toDropboxRawUrl(shareUrl: string): string {
   try {
-    const clean = shareUrl.trim();
+    let clean = shareUrl.trim();
+    // Normaliza errores comunes como 'https:/www.dropbox.com' -> 'https://www.dropbox.com'
+    if (clean.startsWith('https:/www.dropbox.com')) {
+      clean = clean.replace('https:/www.dropbox.com', 'https://www.dropbox.com');
+    }
     const url = new URL(clean);
     // Fuerza entrega directa del archivo; útil para players y descargas
     url.searchParams.set('dl', '1');

@@ -21,7 +21,7 @@ import { getActiveProfile, clearActiveProfile } from '../../../services/profiles
 import { clearToken } from '../../../services/token';
 import { tmdbContentService } from '../../../services/tmdbContent';
 import type { Profile } from '../../../types';
-import type { Content } from '../../../types';
+import type { Content } from '../../../services/content';
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = (width - 60) / 3;
@@ -50,6 +50,8 @@ export default function MyNetflixScreen() {
     loadData();
   }, []);
 
+
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -58,7 +60,7 @@ export default function MyNetflixScreen() {
 
       if (profile) {
         const watchlistData = await tmdbContentService.getWatchlist(profile.id);
-        setWatchlist(watchlistData);
+        setWatchlist(watchlistData as any);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -201,13 +203,13 @@ export default function MyNetflixScreen() {
         pathname: '/content/details/[id]',
         params: { 
           id: `tmdb-${item.id}`,
-          type: item.type // Pasar el tipo de contenido (movie/series)
+          type: item.type 
         }
       })}
       activeOpacity={0.8}
     >
       <Image
-        source={{ uri: item.poster_url }}
+        source={{ uri: (item as any).thumbnail_url || (item as any).poster_url }}
         style={styles.watchlistPoster}
         resizeMode="cover"
       />
@@ -221,150 +223,88 @@ export default function MyNetflixScreen() {
     </TouchableOpacity>
   );
 
-  const renderSettingItem = (item: SettingItem) => (
-    <TouchableOpacity
-      key={item.id}
-      style={styles.settingItem}
-      onPress={item.onPress}
-      disabled={item.type === 'switch'}
-      activeOpacity={0.7}
-    >
-      <View style={styles.settingIcon}>
-        <Ionicons name={item.icon as any} size={24} color={Colors.netflix.white} />
-      </View>
-
-      <View style={styles.settingContent}>
-        <Text style={styles.settingTitle}>{item.title}</Text>
-        {item.subtitle && (
-          <Text style={styles.settingSubtitle}>{item.subtitle}</Text>
-        )}
-      </View>
-
-      {item.type === 'switch' && (
-        <Switch
-          value={item.value}
-          onValueChange={item.onToggle}
-          trackColor={{
-            false: Colors.netflix.darkGray,
-            true: Colors.netflix.red,
-          }}
-          thumbColor={Colors.netflix.white}
-        />
-      )}
-
-      {item.type === 'navigation' && (
-        <Ionicons
-          name="chevron-forward"
-          size={20}
-          color={Colors.netflix.lightGray}
-        />
-      )}
-    </TouchableOpacity>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Mi Netflix</Text>
-          <TouchableOpacity
-            style={styles.settingsButton}
-            onPress={() => setShowSettingsModal(true)}
-            activeOpacity={0.7}
-          >
+          <TouchableOpacity style={styles.settingsButton} onPress={() => setShowSettingsModal(true)}>
             <Ionicons name="settings-outline" size={24} color={Colors.netflix.white} />
           </TouchableOpacity>
         </View>
 
-        {/* Profile Section */}
-        {activeProfile && (
-          <View style={styles.profileSection}>
-            <TouchableOpacity
-              style={styles.profileHeader}
-              onPress={() => router.push('/auth/profiles')}
-              activeOpacity={0.8}
-            >
-              <Image
-                source={{ uri: activeProfile.avatar_url }}
-                style={styles.profileAvatar}
-                resizeMode="cover"
-              />
-              <View style={styles.profileInfo}>
-                <Text style={styles.profileName}>{activeProfile.name}</Text>
+        <View style={styles.profileSection}>
+          <View style={styles.profileHeader}>
+            <Image 
+              source={{ uri: activeProfile?.avatar || 'https://occ-0-2794-2219.1.nflxso.net/dnm/api/v6/K6hjPJd6cR6FpVELC5Pd6ovHRSk/AAAABdpkabKqQAxyWzo6QW_ZnPz1IZLqlmNfK-t4L1VIeV1DY00JhLo_LMVFp936keDxj-V5UELAVJrU--iUUY2MaDxQSSO-0qw.png?r=e6e' }} 
+               style={styles.profileAvatar} 
+            />
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>{activeProfile ? `${activeProfile.name} (Perfil)` : 'Perfil'}</Text>
+              <TouchableOpacity onPress={() => router.push('/auth/profiles')}>
                 <Text style={styles.profileSubtitle}>Cambiar perfil</Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={Colors.netflix.lightGray}
-              />
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
+        </View>
 
-        {/* Mi Lista Section */}
         <View style={styles.watchlistSection}>
           <Text style={styles.sectionTitle}>Mi Lista</Text>
+
           {loading ? (
             <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Cargando...</Text>
+              <Ionicons name="cloud-download-outline" size={40} color={Colors.netflix.lightGray} />
+              <Text style={styles.loadingText}>Cargando tu lista...</Text>
             </View>
-          ) : watchlist.length > 0 ? (
-            <FlatList
-              data={watchlist}
-              renderItem={renderWatchlistItem}
-              keyExtractor={(item) => item.id.toString()}
-              numColumns={3}
-              scrollEnabled={false}
-              contentContainerStyle={styles.watchlistGrid}
-            />
-          ) : (
+          ) : watchlist.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="bookmark-outline" size={48} color={Colors.netflix.lightGray} />
               <Text style={styles.emptyTitle}>Tu lista está vacía</Text>
-              <Text style={styles.emptySubtitle}>
-                Agrega películas y series que quieras ver más tarde
-              </Text>
+              <Text style={styles.emptySubtitle}>Agrega películas y series que quieras ver más tarde</Text>
             </View>
+          ) : (
+            <FlatList
+              data={watchlist}
+              keyExtractor={(item) => `${item.id}`}
+              numColumns={3}
+              columnWrapperStyle={styles.watchlistGrid}
+              renderItem={renderWatchlistItem}
+              contentContainerStyle={{ paddingBottom: 20 }}
+            />
           )}
         </View>
 
         <View style={styles.bottomPadding} />
       </ScrollView>
 
-      {/* Settings Modal */}
-      <Modal
-        visible={showSettingsModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowSettingsModal(false)}
-      >
+      <Modal visible={showSettingsModal} animationType="slide" onRequestClose={() => setShowSettingsModal(false)}>
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Configuración</Text>
-            <TouchableOpacity
-              onPress={() => setShowSettingsModal(false)}
-              style={styles.closeButton}
-            >
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowSettingsModal(false)}>
               <Ionicons name="close" size={24} color={Colors.netflix.white} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalContent}>
-            {settingsItems.map(renderSettingItem)}
-
-            {/* Sign Out Button */}
-            <View style={styles.signOutSection}>
-              <TouchableOpacity
-                style={styles.signOutButton}
-                onPress={handleSignOut}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="log-out-outline" size={24} color={Colors.netflix.red} />
-                <Text style={styles.signOutText}>Cerrar sesión</Text>
-              </TouchableOpacity>
-            </View>
+            {settingsItems.map(item => (
+              <View key={item.id} style={styles.settingItem}>
+                <View style={styles.settingIcon}>
+                  <Ionicons name={item.icon as any} size={24} color={Colors.netflix.white} />
+                </View>
+                <View style={styles.settingContent}>
+                  <Text style={styles.settingTitle}>{item.title}</Text>
+                  {item.subtitle && <Text style={styles.settingSubtitle}>{item.subtitle}</Text>}
+                </View>
+                {item.type === 'switch' ? (
+                  <Switch value={item.value} onValueChange={item.onToggle} />
+                ) : (
+                  <TouchableOpacity onPress={item.onPress}>
+                    <Ionicons name="chevron-forward" size={20} color={Colors.netflix.lightGray} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -483,7 +423,6 @@ const styles = StyleSheet.create({
   bottomPadding: {
     height: 100,
   },
-  // Modal Styles
   modalContainer: {
     flex: 1,
     backgroundColor: Colors.netflix.black,
