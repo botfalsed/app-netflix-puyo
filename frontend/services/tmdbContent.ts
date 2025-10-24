@@ -15,7 +15,7 @@ import {
   getTVShowDetails
 } from './tmdb';
 import type { Movie, TVShow, Genre, MovieDetails, TVShowDetails } from '../types';
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.18.21:4000';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 import { getToken } from './token';
 import { BaseDatos, toDropboxRawUrl } from '../data/localContent';
 

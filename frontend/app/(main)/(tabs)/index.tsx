@@ -328,6 +328,31 @@ export default function HomeScreen() {
 
   const { featured, categoryContent, continueWatching, watchlist } = homeData;
 
+  // Helpers para ordenar y evitar categorías con un solo elemento
+  function normalizeSections(sections: Record<string, Content[]>) {
+    const entries = Object.entries(sections || {});
+    const sorted = entries.sort((a, b) => (b[1]?.length ?? 0) - (a[1]?.length ?? 0));
+    const filtered = sorted.filter(([, arr]) => Array.isArray(arr) && arr.length >= 2);
+    const miscItems = sorted
+      .filter(([, arr]) => Array.isArray(arr) && arr.length < 2)
+      .flatMap(([, arr]) => arr);
+    if (miscItems.length >= 2) {
+      filtered.push(['Otros', miscItems.slice(0, 20)]);
+    }
+    return filtered;
+  }
+
+  function getSectionsForRender(
+    selectedFilter: string,
+    categoryContent: Record<string, Content[]>,
+    filteredContent: Record<string, Content[]>
+  ): Array<[string, Content[]]> {
+    const source = selectedFilter === 'Inicio'
+      ? categoryContent
+      : (Object.keys(filteredContent).length > 0 ? filteredContent : categoryContent);
+    return normalizeSections(source);
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -379,16 +404,16 @@ export default function HomeScreen() {
             />
           )}
 
-          {Object.entries(selectedFilter === 'Inicio' ? categoryContent : (Object.keys(filteredContent).length > 0 ? filteredContent : categoryContent)).map(([categoryName, content], index) => {
-            return (
+          // Dentro de HomeScreen, antes del return, añadimos helpers
+
+          {getSectionsForRender(selectedFilter, categoryContent, filteredContent).map(([categoryName, content], index) => (
               <ContentCarousel
                 key={`category-${selectedFilter}-${categoryName}-${index}`}
                 title={categoryName}
                 data={content}
                 onItemPress={handlePlayContent}
               />
-            );
-          })}
+          ))}
 
           {Object.keys(categoryContent).length === 0 && (
             <>

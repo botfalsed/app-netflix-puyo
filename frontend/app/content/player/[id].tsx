@@ -74,7 +74,9 @@ export default function VideoPlayerScreen() {
       const isStreamingEndpoint = /\/api\/stream\/mp4/i.test(u);
       return hasPlayableExt || isStreamingEndpoint;
     };
-    setUnplayable(!isPlayableWeb(content?.video_url));
+    const fallbackUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+    const urlToCheck = content?.video_url ? String(content.video_url) : fallbackUrl;
+    setUnplayable(!isPlayableWeb(urlToCheck));
   }, [content]);
   const setupScreenOrientation = async () => {
     await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);

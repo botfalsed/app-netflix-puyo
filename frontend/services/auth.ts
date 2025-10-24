@@ -1,4 +1,4 @@
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.18.21:4000';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 
 type LoginCreds = { emailOrPhone: string; password: string };
 type RegisterCreds = { name: string; emailOrPhone: string; password: string };
@@ -9,12 +9,17 @@ export async function loginUser(creds: LoginCreds) {
     console.log('📱 Using API_BASE:', API_BASE);
     console.log('📤 Sending login data:', creds);
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const res = await fetch(`${API_BASE}/api/login`, { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(creds),
-      timeout: 10000
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
     
     console.log('✅ Response status:', res.status);
     const result = await res.json();
@@ -37,12 +42,17 @@ export async function registerUser(creds: RegisterCreds) {
     console.log('🔗 Attempting register to:', `${API_BASE}/api/register`);
     console.log('📤 Sending register data:', creds);
     
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const res = await fetch(`${API_BASE}/api/register`, { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(creds),
-      timeout: 10000
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
     
     console.log('✅ Register response status:', res.status);
     const result = await res.json();

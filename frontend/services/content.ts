@@ -1,6 +1,6 @@
 import { getToken } from './token';
 import { tmdbContentService } from './tmdbContent';
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.18.21:4000';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000';
 
 export interface Content {
   id: number;
