@@ -58,7 +58,7 @@ export const ContentProvider: React.FC<ContentProviderProps> = ({ children }) =>
         setCache(prev => ({
           ...prev,
           homeData: data,
-          filteredContent: { 'Inicio': data.categoryContent },
+          filteredContent: { 'Inicio': Object.values(data.categoryContent || {}).flat() },
           lastUpdated: Date.now(),
           isLoading: false,
         }));

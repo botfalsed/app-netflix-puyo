@@ -97,7 +97,7 @@ const LoginScreen: React.FC = () => {
   return (
     <SafeAreaWrapper>
       <LinearGradient
-        colors={['#000000', '#1a1a1a', '#000000']}
+        colors={['#d34c4c2a', '#1a1a1a', '#000000']}
         style={styles.container}
       >
         <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -123,7 +123,7 @@ const LoginScreen: React.FC = () => {
             <View style={styles.content}>
               <View style={styles.formContainer}>
                 <Text style={styles.title}>
-                  {isRegister ? 'Crear cuenta' : 'Iniciar sesión'}
+                  {isRegister ? 'CREAR CUENTA' : 'INICIAR SESIÓN'}
                 </Text>
 
                 {error && (
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   logo: {
-    fontSize: 24,
+    fontSize: 30,
     fontWeight: 'bold',
     color: '#E50914',
     letterSpacing: 2,
@@ -252,12 +252,13 @@ const styles = StyleSheet.create({
     paddingBottom: 70,
   },
   formContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    // backgroundColor: 'rgba(0, 0, 0, 0.75)',
     borderRadius: 8,
     padding: 30,
     marginHorizontal: 5,
   },
   title: {
+    fontFamily: 'serif',
     fontSize: 32,
     fontWeight: 'bold',
     color: '#fff',
@@ -281,17 +282,17 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputWrapper: {
-    marginBottom: 16,
+    marginBottom: 15,
   },
   input: {
-    backgroundColor: '#333',
+    backgroundColor: '#29262675',
     color: '#fff',
     fontSize: 16,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#555',
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#6d6d6dff',
   },
   loginButton: {
     backgroundColor: '#E50914',
@@ -307,6 +308,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+    fontFamily: 'serif',
   },
   forgotPasswordButton: {
     alignItems: 'center',
@@ -322,7 +324,7 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
   },
   underlineText: {
     textDecorationLine: 'underline',

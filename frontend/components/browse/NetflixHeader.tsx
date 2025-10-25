@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
   },
   netflixLogo: {
     color: Colors.netflix.red,
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     letterSpacing: 2,
   },

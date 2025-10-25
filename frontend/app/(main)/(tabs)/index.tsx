@@ -7,13 +7,14 @@ import {
   StatusBar,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 
 import { Colors } from '../../../constants/theme';
 import { contentService, type HomeData, type Content } from '../../../services/content';
-import { getActiveProfile } from '../../../services/profiles';
+import { getActiveProfile, setActiveProfile } from '../../../services/profiles';
 import { tmdbContentService } from '../../../services/tmdbContent';
 import ContentCarousel from '../../../components/browse/ContentCarousel';
 import LoadingCarousel from '../../../components/browse/LoadingCarousel';
@@ -65,7 +66,7 @@ export default function HomeScreen() {
   const { selectedFilter, setSelectedFilter, filteredContent, setFilteredContent, scrollPosition, setScrollPosition } = useFilter();
   const { cache, loadHomeData, updateFilteredContent, updateFeaturedContent } = useContentContext();
   
-  const [activeProfile, setActiveProfile] = useState<any>(null);
+  const [activeProfile, setActiveProfileState] = useState<any>(null);
   const [dailyFeatured, setDailyFeatured] = useState<Content | null>(null);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -77,25 +78,23 @@ export default function HomeScreen() {
 
   useEffect(() => {
     const initializeData = async () => {
-      // Crear un perfil temporal para testing
-      const testProfile = { id: 1, name: 'Test Profile' };
-      setActiveProfile(testProfile);
-      
-      // Cargar datos usando el contexto global
-      await loadHomeData(testProfile.id);
+      const profile = await getActiveProfile();
+      if (profile) {
+        setActiveProfileState(profile);
+        await loadHomeData(profile.id);
+      } else {
+        // Fallback: carga inicial sin perfil para evitar bloquear la UI
+        await loadHomeData(1);
+      }
     };
-    
     initializeData();
   }, []);
 
-  // Función simple de scroll sin restauración automática
   const handleScroll = React.useCallback((event: any) => {
     const currentY = event.nativeEvent.contentOffset.y;
-    // Solo guardar la posición, sin restauración automática
     setScrollPosition(currentY);
   }, [setScrollPosition]);
 
-  // Function to get daily featured content based on day of year
   const getDailyFeaturedContent = (categoryContent: { [key: string]: Content[] }) => {
     const allContent: Content[] = [];
     Object.values(categoryContent).forEach(contentArray => {
@@ -104,7 +103,6 @@ export default function HomeScreen() {
 
     if (allContent.length === 0) return null;
 
-    // Use day of year to select content (changes daily)
     const now = new Date();
     const start = new Date(now.getFullYear(), 0, 0);
     const diff = now.getTime() - start.getTime();
@@ -114,14 +112,11 @@ export default function HomeScreen() {
     return allContent[index];
   };
 
-  // Function to get featured content based on current filter
   const getFeaturedContentByFilter = (filter: string, content: { [key: string]: Content[] }) => {
-    // Check if we already have cached content for this filter
     if (featuredContentCache[filter]) {
       return featuredContentCache[filter];
     }
 
-    // Validate content parameter
     if (!content || typeof content !== 'object') {
       return null;
     }
@@ -130,7 +125,6 @@ export default function HomeScreen() {
 
     switch (filter) {
       case 'Inicio':
-        // Use all content for home
         Object.values(content).forEach(contentArray => {
           if (Array.isArray(contentArray)) {
             targetContent.push(...contentArray);
@@ -138,7 +132,6 @@ export default function HomeScreen() {
         });
         break;
       case 'Series':
-        // Filter only series content
         Object.values(content).forEach(contentArray => {
           if (Array.isArray(contentArray)) {
             targetContent.push(...contentArray.filter(item => item.type === 'series'));
@@ -146,7 +139,6 @@ export default function HomeScreen() {
         });
         break;
       case 'Películas':
-        // Filter only movie content
         Object.values(content).forEach(contentArray => {
           if (Array.isArray(contentArray)) {
             targetContent.push(...contentArray.filter(item => item.type === 'movie'));
@@ -154,17 +146,14 @@ export default function HomeScreen() {
         });
         break;
       case 'Mi lista':
-        // Use watchlist content
         if (homeData?.watchlist) {
           targetContent = homeData.watchlist;
         }
         break;
       default:
-        // For specific categories, use filtered content
         if (filteredContent[filter]) {
           targetContent = filteredContent[filter];
         } else {
-          // Fallback to all content
           Object.values(content).forEach(contentArray => {
             if (Array.isArray(contentArray)) {
               targetContent.push(...contentArray);
@@ -175,19 +164,16 @@ export default function HomeScreen() {
 
     if (targetContent.length === 0) return null;
 
-    // Use day of year + filter hash to select content consistently
     const now = new Date();
     const start = new Date(now.getFullYear(), 0, 0);
     const diff = now.getTime() - start.getTime();
     const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
     
-    // Create a simple hash from filter name
     const filterHash = filter.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const index = (dayOfYear + filterHash) % targetContent.length;
     
     const selectedContent = targetContent[index];
     
-    // Update the cache using the context
     updateFeaturedContent(filter, selectedContent);
     
     return selectedContent;
@@ -215,8 +201,7 @@ export default function HomeScreen() {
     setSelectedFilter(filter);
     if (!homeData) return;
 
-    // Actualizar el contenido destacado usando el caché del contexto
-    const featuredContent = getFeaturedContentByFilter(filter, homeData.categoryContent ? Object.values(homeData.categoryContent).flat() : []);
+    const featuredContent = getFeaturedContentByFilter(filter, homeData.categoryContent || {});
     setDailyFeatured(featuredContent);
 
     let filtered: Record<string, Content[]>;
@@ -231,23 +216,19 @@ export default function HomeScreen() {
         filtered = filterContentByType(homeData.categoryContent || {}, 'movie');
         break;
       case 'Mi lista':
-        // Usar la watchlist existente
         filtered = { 'Mi lista': homeData.watchlist || [] };
         break;
       default:
-        // Para categorías específicas, cargar contenido desde TMDB
         try {
           const categoryContent = await tmdbContentService.getContentByCategory(filter, 20);
           filtered = { [filter]: categoryContent };
         } catch (error) {
           console.error(`Error loading content for category ${filter}:`, error);
-          // Fallback: mostrar contenido existente
           filtered = homeData.categoryContent || {};
         }
     }
     setFilteredContent(filtered);
     
-    // Actualizar el caché de contenido filtrado usando el contexto
     updateFilteredContent(filter, Object.values(filtered).flat());
   }, [homeData, setSelectedFilter, setFilteredContent, updateFilteredContent]);
 
@@ -255,9 +236,31 @@ export default function HomeScreen() {
     router.push(`/content/player/${content.id}`);
   };
 
-  const handleAddToList = (content: Content) => {
-    // TODO: Implement add to watchlist functionality
-    console.log('Add to list:', content.title);
+  const handleAddToList = async (content: Content) => {
+    try {
+      const profile = await getActiveProfile();
+      if (!profile) {
+        console.warn('No active profile found');
+        return;
+      }
+
+      if (content.type !== 'movie') {
+        Alert.alert('Mi Lista', 'Por ahora solo se pueden agregar películas.');
+        return;
+      }
+
+      const ok = await tmdbContentService.addToWatchlist(profile.id, content.id);
+      if (ok) {
+        console.log('Agregado a Mi Lista:', content.title);
+        Alert.alert('Mi Lista', 'Se agregó a tu lista');
+        await loadHomeData(profile.id, true);
+      } else {
+        Alert.alert('Mi Lista', 'No se pudo agregar');
+      }
+    } catch (e) {
+      console.error('Error agregando a Mi Lista:', e);
+      Alert.alert('Mi Lista', 'Ocurrió un error al agregar');
+    }
   };
 
   const handleViewDetails = (content: Content) => {
@@ -265,7 +268,7 @@ export default function HomeScreen() {
       pathname: '/content/details/[id]',
       params: { 
         id: `tmdb-${content.id}`,
-        type: content.type // Pasar el tipo de contenido (movie/series)
+        type: content.type 
       }
     });
   };
@@ -273,8 +276,6 @@ export default function HomeScreen() {
   const handleCategorySelect = async (category: string) => {
     setSelectedFilter(category);
     setShowCategoriesModal(false);
-
-    // Cargar contenido para la categoría seleccionada
     await handleFilterChange(category);
   };
 
@@ -282,7 +283,6 @@ export default function HomeScreen() {
     setSelectedFilter('Inicio');
     if (homeData) {
       setFilteredContent(homeData.categoryContent || {});
-      // Update featured content when clearing filter (will use cache if available)
       const featuredContent = getFeaturedContentByFilter('Inicio', homeData.categoryContent || {});
       setDailyFeatured(featuredContent);
     }
@@ -290,19 +290,15 @@ export default function HomeScreen() {
 
   useEffect(() => {
     if (!homeData?.categoryContent) return;
-    
-    // Actualizar el contenido destacado usando el caché del contexto
     const featuredContent = getFeaturedContentByFilter(selectedFilter, homeData.categoryContent);
     setDailyFeatured(featuredContent);
   }, [homeData, selectedFilter, updateFeaturedContent]);
 
   useEffect(() => {
     if (homeData) {
-      // Inicializar filteredContent con categoryContent cuando se carga homeData
       if (selectedFilter === 'Inicio') {
         setFilteredContent(homeData.categoryContent || {});
       } else {
-        // Re-aplicar el filtro actual cuando se cargan nuevos datos
         handleFilterChange(selectedFilter);
       }
     }
@@ -316,7 +312,8 @@ export default function HomeScreen() {
     );
   }
 
-  if (!homeData || !activeProfile) {
+  // Solo mostrar error si no hay datos después de intentar cargar y no está cargando
+  if (!homeData && !loading) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Error cargando contenido</Text>
@@ -330,20 +327,52 @@ export default function HomeScreen() {
     );
   }
 
+  // Si no hay homeData pero está cargando, mostrar loading
+  if (!homeData) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.netflix.red} />
+      </View>
+    );
+  }
+
   const { featured, categoryContent, continueWatching, watchlist } = homeData;
+
+  // Helpers para ordenar y evitar categorías con un solo elemento
+  function normalizeSections(sections: Record<string, Content[]>) {
+    const entries = Object.entries(sections || {});
+    const sorted = entries.sort((a, b) => (b[1]?.length ?? 0) - (a[1]?.length ?? 0));
+    const filtered = sorted.filter(([, arr]) => Array.isArray(arr) && arr.length >= 2);
+    const miscItems = sorted
+      .filter(([, arr]) => Array.isArray(arr) && arr.length < 2)
+      .flatMap(([, arr]) => arr);
+    if (miscItems.length >= 2) {
+      filtered.push(['Otros', miscItems.slice(0, 20)]);
+    }
+    return filtered;
+  }
+
+  function getSectionsForRender(
+    selectedFilter: string,
+    categoryContent: Record<string, Content[]>,
+    filteredContent: Record<string, Content[]>
+  ): Array<[string, Content[]]> {
+    const source = selectedFilter === 'Inicio'
+      ? categoryContent
+      : (Object.keys(filteredContent).length > 0 ? filteredContent : categoryContent);
+    return normalizeSections(source);
+  }
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Netflix Header */}
       <NetflixHeader
         selectedFilter={selectedFilter}
         onClearFilter={handleClearFilter}
         onSearchPress={() => router.push('/main/search')}
       />
 
-      {/* Navigation Bar */}
       <NavigationBar
         selectedFilter={selectedFilter}
         onFilterChange={handleFilterChange}
@@ -358,7 +387,6 @@ export default function HomeScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={100}
       >
-        {/* Hero Banner */}
         {dailyFeatured && (
           <HeroBanner
             dailyFeatured={dailyFeatured}
@@ -368,9 +396,7 @@ export default function HomeScreen() {
           />
         )}
 
-        {/* Content Sections */}
         <View style={styles.contentSections}>
-          {/* Continue Watching */}
           {continueWatching && continueWatching.length > 0 && (
             <ContentCarousel
               title="Continuar viendo"
@@ -380,7 +406,6 @@ export default function HomeScreen() {
             />
           )}
 
-          {/* My List */}
           {watchlist && watchlist.length > 0 && (
             <ContentCarousel
               title="Mi lista"
@@ -389,19 +414,17 @@ export default function HomeScreen() {
             />
           )}
 
-          {/* Category Content */}
-          {Object.entries(selectedFilter === 'Inicio' ? categoryContent : (Object.keys(filteredContent).length > 0 ? filteredContent : categoryContent)).map(([categoryName, content], index) => {
-            return (
+          // Dentro de HomeScreen, antes del return, añadimos helpers
+
+          {getSectionsForRender(selectedFilter, categoryContent, filteredContent).map(([categoryName, content], index) => (
               <ContentCarousel
                 key={`category-${selectedFilter}-${categoryName}-${index}`}
                 title={categoryName}
                 data={content}
                 onItemPress={handlePlayContent}
               />
-            );
-          })}
+          ))}
 
-          {/* Loading placeholders if no content */}
           {Object.keys(categoryContent).length === 0 && (
             <>
               <LoadingCarousel title="Acción" />
@@ -412,7 +435,6 @@ export default function HomeScreen() {
         </View>
       </ScrollView>
 
-      {/* Categories Modal */}
       <CategoriesModal
         visible={showCategoriesModal}
         categories={categories}
@@ -427,6 +449,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.netflix.black,
+    // backgroundColor: "gray"
   },
   loadingContainer: {
     flex: 1,

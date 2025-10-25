@@ -27,7 +27,7 @@ const HeroBanner = React.memo(function HeroBanner({
   onAddToList,
   onViewDetails
 }: HeroBannerProps) {
-  
+
   const handlePlay = React.useCallback(() => {
     onPlayContent(dailyFeatured);
   }, [onPlayContent, dailyFeatured]);
@@ -42,62 +42,69 @@ const HeroBanner = React.memo(function HeroBanner({
 
   return (
     <View style={styles.container}>
-      <ImageBackground
-        source={{ uri: dailyFeatured.thumbnail_url }}
-        style={styles.backgroundImage}
-        resizeMode="cover"
-      >
-        {/* Gradient overlay */}
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)']}
-          style={styles.gradient}
-        />
-        
-        {/* Content overlay */}
-        <View style={styles.contentOverlay}>
-          <View style={styles.contentInfo}>
-            <Text style={styles.title} numberOfLines={2}>
-              {dailyFeatured.title}
-            </Text>
-            
-            {dailyFeatured.overview && (
-              <Text style={styles.description} numberOfLines={3}>
-                {dailyFeatured.overview}
-              </Text>
-            )}
-            
-            {/* Action buttons */}
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity 
-                style={styles.playButton}
-                onPress={handlePlay}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="play" size={20} color={Colors.netflix.black} />
-                <Text style={styles.playButtonText}>Reproducir</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.listButton}
-                onPress={handleAddToList}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="add" size={20} color={Colors.netflix.white} />
-                <Text style={styles.listButtonText}>Mi lista</Text>
-              </TouchableOpacity>
+      {/* Contenedor con sombra */}
+      <View style={styles.shadowContainer}>
+        {/* Contenedor con borde redondeado y recorte */}
+        <View style={styles.imageWrapper}>
+          <ImageBackground
+            source={{ uri: dailyFeatured.thumbnail_url }}
+            style={styles.backgroundImage}
+            resizeMode="cover"
+          >
+            {/* Capa de gradiente */}
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)']}
+              style={styles.gradient}
+            />
 
-              <TouchableOpacity 
-                style={styles.infoButton}
-                onPress={handleViewDetails}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="information-circle-outline" size={20} color={Colors.netflix.white} />
-                <Text style={styles.infoButtonText}>Más información</Text>
-              </TouchableOpacity>
+            {/* Contenido sobre la imagen */}
+            <View style={styles.contentOverlay}>
+              <Text style={styles.title} numberOfLines={2}>
+                {dailyFeatured.title}
+              </Text>
+
+              {dailyFeatured.overview && (
+                <Text style={styles.description} numberOfLines={3}>
+                  {dailyFeatured.overview}
+                </Text>
+              )}
+
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={styles.playButton}
+                  onPress={handlePlay}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="play" size={20} color={Colors.netflix.black} />
+                  <Text style={styles.playButtonText}>Reproducir</Text>
+                </TouchableOpacity>
+
+                {/* <TouchableOpacity
+                  style={styles.listButton}
+                  onPress={handleAddToList}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add" size={20} color={Colors.netflix.white} />
+                  <Text style={styles.listButtonText}>Mi lista</Text>
+                </TouchableOpacity> */}
+
+                <TouchableOpacity
+                  style={styles.infoButton}
+                  onPress={handleViewDetails}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name="information-circle-outline"
+                    size={20}
+                    color={Colors.netflix.white}
+                  />
+                  <Text style={styles.infoButtonText}>Más información</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          </ImageBackground>
         </View>
-      </ImageBackground>
+      </View>
     </View>
   );
 });
@@ -108,17 +115,32 @@ const styles = StyleSheet.create({
   container: {
     height: screenHeight * 0.6,
     width: screenWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    
+  },
+  shadowContainer: {
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 10,
+    backgroundColor: 'transparent',
+  },
+  imageWrapper: {
+    borderRadius: 20,
+    overflow: 'hidden', // recorta las esquinas
   },
   backgroundImage: {
     flex: 1,
     width: '100%',
+    height: '100%',
+    elevation: 10
   },
   gradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
   },
   contentOverlay: {
     flex: 1,
@@ -126,15 +148,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 40,
   },
-  contentInfo: {
-    alignItems: 'center',
-  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: Colors.netflix.white,
     textAlign: 'center',
     marginBottom: 10,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
   description: {
     fontSize: 16,
@@ -142,6 +164,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   buttonContainer: {
     flexDirection: 'row',

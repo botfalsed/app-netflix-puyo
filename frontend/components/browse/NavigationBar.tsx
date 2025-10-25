@@ -56,9 +56,9 @@ const styles = StyleSheet.create({
   navItem: {
     paddingVertical: 5,
     paddingHorizontal: 12,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: Colors.netflix.lightGray,
-    borderRadius: 40,
+    borderRadius: 11,
   },
   categoriesButton: {
     flexDirection: 'row',
@@ -66,9 +66,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 12,
     gap: 4,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: Colors.netflix.lightGray,
-    borderRadius: 40,
+    borderRadius: 11,
   },
   navText: {
     color: Colors.netflix.lightGray,

@@ -52,7 +52,7 @@ export default function ContentDetailsScreen() {
       } else {
         // It's a local ID, get from local content
         const localContent = await tmdbContentService.getLocalContent();
-        contentData = localContent.find(item => item.id === id) || null;
+        contentData = localContent.find(item => item.id === Number(id)) || null;
       }
 
       if (!contentData) {
@@ -62,19 +62,18 @@ export default function ContentDetailsScreen() {
 
       setContent(contentData);
 
-      // Check if content is in watchlist
+      // Check if content is in watchlist usando servicio TMDB
       const profile = await getActiveProfile();
-      if (profile) {
-        const watchlist = profile.watchlist || [];
-        setIsInWatchlist(watchlist.some(item => item.id === contentData.id));
+      if (profile && contentData.type === 'movie') {
+        const inList = await tmdbContentService.checkMovieInWatchlist(profile.id, contentData.id);
+        setIsInWatchlist(inList);
       }
 
       // Load episodes if it's a series
       if (contentData.type === 'series') {
-        const episodesData = await tmdbContentService.getSeriesEpisodes(
-          isTmdbId ? (id.startsWith('tmdb-') ? parseInt(id.replace('tmdb-', '')) : parseInt(id)) : contentData.tmdb_id || 0,
-          selectedSeason
-        );
+        const numericId = id.startsWith('tmdb-') ? parseInt(id.replace('tmdb-', '')) : parseInt(id);
+        const seriesId = isTmdbId ? numericId : contentData.id;
+        const episodesData = await tmdbContentService.getSeriesEpisodes(seriesId, selectedSeason);
         setEpisodes(episodesData);
       }
     } catch (error) {
@@ -98,25 +97,28 @@ export default function ContentDetailsScreen() {
       const profile = await getActiveProfile();
       if (!profile) return;
 
-      const watchlist = profile.watchlist || [];
-      const isCurrentlyInWatchlist = watchlist.some(item => item.id === content.id);
-
-      let updatedWatchlist;
-      if (isCurrentlyInWatchlist) {
-        updatedWatchlist = watchlist.filter(item => item.id !== content.id);
-      } else {
-        updatedWatchlist = [...watchlist, {
-          id: content.id,
-          title: content.title,
-          poster_url: content.poster_url,
-          type: content.type,
-          added_at: new Date().toISOString()
-        }];
+      if (content.type !== 'movie') {
+        Alert.alert('Mi Lista', 'Por ahora solo se pueden agregar películas.');
+        return;
       }
 
-      // Update profile with new watchlist
-      // This would typically involve calling a profile service
-      setIsInWatchlist(!isCurrentlyInWatchlist);
+      if (isInWatchlist) {
+        const ok = await tmdbContentService.removeFromWatchlist(profile.id, content.id);
+        if (ok) {
+          setIsInWatchlist(false);
+          Alert.alert('Mi Lista', 'Se eliminó de tu lista');
+        } else {
+          Alert.alert('Mi Lista', 'No se pudo eliminar');
+        }
+      } else {
+        const ok = await tmdbContentService.addToWatchlist(profile.id, content.id);
+        if (ok) {
+          setIsInWatchlist(true);
+          Alert.alert('Mi Lista', 'Se agregó a tu lista');
+        } else {
+          Alert.alert('Mi Lista', 'No se pudo agregar');
+        }
+      }
     } catch (error) {
       console.error('Error updating watchlist:', error);
       Alert.alert('Error', 'No se pudo actualizar la lista');
@@ -190,7 +192,7 @@ export default function ContentDetailsScreen() {
           <Text style={styles.errorText}>Contenido no encontrado</Text>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.replace('/(main)/(tabs)/')}
+            onPress={() => router.push('/(main)/(tabs)')}
           >
             <Text style={styles.backButtonText}>Volver</Text>
           </TouchableOpacity>
@@ -217,7 +219,7 @@ export default function ContentDetailsScreen() {
           {/* Back Button */}
           <TouchableOpacity
             style={styles.headerBackButton}
-            onPress={() => router.replace('/(main)/(tabs)/')}
+            onPress={() => router.push('/(main)/(tabs)')}
           >
             <Ionicons name="arrow-back" size={24} color={Colors.netflix.white} />
           </TouchableOpacity>
@@ -230,14 +232,14 @@ export default function ContentDetailsScreen() {
               <Text style={styles.contentYear}>{content.release_year}</Text>
               <Text style={styles.contentRating}>{content.rating}</Text>
               <Text style={styles.contentDuration}>
-                {content.type === 'series' ? `${content.seasons} temporadas` : `${content.duration} min`}
+                {content.type === 'series' ? `${content.seasons} temporadas` : `${content.duration_minutes ?? 0} min`}
               </Text>
             </View>
 
             <View style={styles.contentCategories}>
               {content.categories?.slice(0, 3).map((category, index) => (
                 <Text key={index} style={styles.category}>
-                  {category.name || category}
+                  {category.name}
                   {index < (content.categories?.length || 0) - 1 && index < 2 ? ' • ' : ''}
                 </Text>
               ))}
@@ -247,20 +249,14 @@ export default function ContentDetailsScreen() {
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.playButton}
-            onPress={handlePlay}
-          >
+          <TouchableOpacity style={styles.playButton} onPress={handlePlay}>
             <Ionicons name="play" size={20} color={Colors.netflix.black} />
             <Text style={styles.playButtonText}>Reproducir</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={handleDownload}
-          >
-            <Ionicons name="download-outline" size={20} color={Colors.netflix.white} />
-            <Text style={styles.secondaryButtonText}>Descargar</Text>
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleToggleWatchlist}>
+            <Ionicons name={isInWatchlist ? 'checkmark' : 'add'} size={20} color={Colors.netflix.white} />
+            <Text style={styles.secondaryButtonText}>{isInWatchlist ? 'En Mi Lista' : 'Mi Lista'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -271,52 +267,38 @@ export default function ContentDetailsScreen() {
 
         {/* Additional Actions */}
         <View style={styles.additionalActions}>
-          <TouchableOpacity
-            style={styles.actionItem}
-            onPress={handleToggleWatchlist}
-          >
-            <Ionicons
-              name={isInWatchlist ? "checkmark" : "add"}
-              size={24}
-              color={Colors.netflix.white}
-            />
-            <Text style={styles.actionText}>
-              {isInWatchlist ? 'En mi lista' : 'Mi lista'}
-            </Text>
+          <TouchableOpacity style={styles.actionItem} onPress={handleDownload}>
+            <Ionicons name="download" size={20} color={Colors.netflix.white} />
+            <Text style={styles.actionText}>Descargar</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionItem}
-            onPress={() => console.log('Rate content')}
-          >
-            <Ionicons name="thumbs-up-outline" size={24} color={Colors.netflix.white} />
-            <Text style={styles.actionText}>Calificar</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionItem}
-            onPress={handleShare}
-          >
-            <Ionicons name="share-outline" size={24} color={Colors.netflix.white} />
+          <TouchableOpacity style={styles.actionItem} onPress={handleShare}>
+            <Ionicons name="share-outline" size={20} color={Colors.netflix.white} />
             <Text style={styles.actionText}>Compartir</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionItem}>
+            <Ionicons name="information-circle-outline" size={20} color={Colors.netflix.white} />
+            <Text style={styles.actionText}>Detalles</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Episodes Section (for series) */}
-        {content.type === 'series' && episodes.length > 0 && (
+        {/* Episodes */}
+        {content.type === 'series' && (
           <View style={styles.episodesSection}>
             <View style={styles.episodesHeader}>
               <Text style={styles.episodesTitle}>Episodios</Text>
-              <TouchableOpacity style={styles.seasonSelector}>
-                <Text style={styles.seasonText}>Temporada {selectedSeason}</Text>
+              <View style={styles.seasonSelector}>
+                <Text style={styles.seasonText}>T{selectedSeason}</Text>
                 <Ionicons name="chevron-down" size={16} color={Colors.netflix.white} />
-              </TouchableOpacity>
+              </View>
             </View>
 
             {episodes.map(renderEpisode)}
           </View>
         )}
 
+        {/* Bottom Padding */}
         <View style={styles.bottomPadding} />
       </ScrollView>
     </SafeAreaView>

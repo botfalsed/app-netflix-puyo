@@ -19,28 +19,28 @@ const { width } = Dimensions.get('window');
 const carouselData = [
   {
     id: 1,
-    image: require('../../assets/images/juegoCalamar.jpg'),
+    image: require('../../assets/images/imgFondo1.jpg'),
     title: 'Películas y series',
     subtitle: 'ilimitadas y mucho más.',
     description: 'Disfruta donde quieras. Cancela cuando quieras. Toca el enlace de abajo para suscribirte.',
   },
   {
     id: 2,
-    image: require('../../assets/images/merlina.jpg'),
+    image: require('../../assets/images/imgFondo2.jpg'),
     title: 'Descarga y ve',
     subtitle: 'sin conexión.',
     description: 'Guarda fácilmente tus favoritos y siempre tendrás algo que ver.',
   },
   {
     id: 3,
-    image: require('../../assets/images/kimetsu.jpg'),
+    image: require('../../assets/images/imgFondo3.jpg'),
     title: 'Sin compromisos.',
     subtitle: 'Cancela en línea.',
     description: 'Únete hoy, cancela en cualquier momento.',
   },
   {
     id: 4,
-    image: require('../../assets/images/one piece.jpg'),
+    image: require('../../assets/images/imgFondo4.jpg'),
     title: 'Ve en cualquier lugar.',
     subtitle: 'Cancela en cualquier momento.',
     description: 'Transmite películas y programas de TV ilimitados en tu teléfono, tableta, laptop y TV.',
@@ -80,7 +80,7 @@ const WelcomeScreen: React.FC = () => {
       <SafeAreaWrapper backgroundColor="#000" statusBarStyle="light-content">
         {/* Header fijo con gradiente transparente */}
         <LinearGradient
-          colors={['rgba(0,0,0,0.8)', 'rgba(40,40,40,0.3)', 'transparent']}
+          colors={['rgba(0,0,0,0.8)', 'rgba(40, 40, 40, 0.04)', 'transparent']}
           style={[styles.headerGradient, { top: insets.top }]}
         >
           <View style={styles.header}>
@@ -112,8 +112,13 @@ const WelcomeScreen: React.FC = () => {
                 <View style={styles.imageContainer}>
                   <Image source={item.image} style={styles.slideImage} />
                   <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,0.95)']}
-                    style={styles.gradient}
+                    colors={[
+                      'rgba(0,0,0,0.85)',
+                      'rgba(76, 1, 1, 0.43)',
+                      'rgba(0,0,0,0.85)',
+                    ]}
+                    locations={[0, 0.5, 1]}
+                    style={styles.fullGradient}
                   />
                 </View>
                 <View style={styles.textContainer}>
@@ -173,7 +178,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   logo: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#E50914',
     letterSpacing: 2,
@@ -189,7 +194,7 @@ const styles = StyleSheet.create({
   },
   languageText: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 17,
     fontWeight: '500',
   },
   loginButton: {
@@ -198,7 +203,7 @@ const styles = StyleSheet.create({
   },
   loginText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '500',
   },
   carouselContainer: {
@@ -220,6 +225,13 @@ const styles = StyleSheet.create({
     height: '100%',
     resizeMode: 'cover',
   },
+  fullGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   gradient: {
     position: 'absolute',
     bottom: 0,
@@ -235,15 +247,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   slideTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 45,
+    fontWeight: "bold",
+    fontFamily: 'serif',
     color: '#fff',
     textAlign: 'center',
     marginBottom: 5,
   },
   slideSubtitle: {
-    fontSize: 32,
+    fontSize: 30,
     fontWeight: 'bold',
+    fontFamily: 'serif',
     color: '#fff',
     textAlign: 'center',
     marginBottom: 20,
@@ -251,6 +265,7 @@ const styles = StyleSheet.create({
   slideDescription: {
     fontSize: 16,
     color: '#fff',
+    fontFamily: 'serif',
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 10,
@@ -274,8 +289,8 @@ const styles = StyleSheet.create({
   },
   paginationDotActive: {
     backgroundColor: '#fff',
-    width: 10,
-    height: 10,
+    width: 9,
+    height: 9,
     borderRadius: 5,
   },
   bottomContainer: {
@@ -295,6 +310,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+    fontFamily: 'serif',
     letterSpacing: 1,
   },
 });

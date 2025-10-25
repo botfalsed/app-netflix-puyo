@@ -1,4 +1,3 @@
-import { API_CONFIG, API_ENDPOINTS, getImageUrl, IMAGE_SIZES } from '../constants/Api';
 import { 
   Movie, 
   TVShow, 
@@ -10,10 +9,80 @@ import {
   MovieResponse 
 } from '../types';
 
+// TMDB local config and helpers (replacing ../constants/Api)
+const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+const TMDB_IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
+const TMDB_API_KEY = process.env.EXPO_PUBLIC_TMDB_API_KEY || '9cf9aba2bca13c2fdfa92c44bd160840';
+
+const IMAGE_SIZES = {
+  POSTER: {
+    W92: 'w92',
+    W154: 'w154',
+    W185: 'w185',
+    W342: 'w342',
+    W500: 'w500',
+    W780: 'w780',
+    ORIGINAL: 'original',
+  },
+  BACKDROP: {
+    W300: 'w300',
+    W780: 'w780',
+    W1280: 'w1280',
+    ORIGINAL: 'original',
+  },
+};
+
+const getImageUrl = (path: string, size: string = IMAGE_SIZES.POSTER.W500) => {
+  if (!path) return null;
+  return `${TMDB_IMAGE_BASE_URL}/${size}${path}`;
+};
+
+const API_ENDPOINTS = {
+  // TMDB Movie endpoints
+  TMDB_POPULAR: '/movie/popular',
+  TMDB_TOP_RATED: '/movie/top_rated',
+  TMDB_NOW_PLAYING: '/movie/now_playing',
+  TMDB_UPCOMING: '/movie/upcoming',
+  TMDB_MOVIE_DETAILS: (id: number) => `/movie/${id}`,
+  TMDB_MOVIE_CREDITS: (id: number) => `/movie/${id}/credits`,
+  TMDB_MOVIE_VIDEOS: (id: number) => `/movie/${id}/videos`,
+  TMDB_MOVIE_SIMILAR: (id: number) => `/movie/${id}/similar`,
+  TMDB_MOVIE_RECOMMENDATIONS: (id: number) => `/movie/${id}/recommendations`,
+
+  // TMDB TV endpoints
+  TMDB_TV_POPULAR: '/tv/popular',
+  TMDB_TV_TOP_RATED: '/tv/top_rated',
+  TMDB_TV_ON_THE_AIR: '/tv/on_the_air',
+  TMDB_TV_AIRING_TODAY: '/tv/airing_today',
+  TMDB_TV_DETAILS: (id: number) => `/tv/${id}`,
+  TMDB_TV_CREDITS: (id: number) => `/tv/${id}/credits`,
+  TMDB_TV_VIDEOS: (id: number) => `/tv/${id}/videos`,
+  TMDB_TV_SIMILAR: (id: number) => `/tv/${id}/similar`,
+  TMDB_TV_RECOMMENDATIONS: (id: number) => `/tv/${id}/recommendations`,
+
+  // TMDB Search endpoints
+  TMDB_SEARCH_MOVIE: '/search/movie',
+  TMDB_SEARCH_TV: '/search/tv',
+  TMDB_SEARCH_MULTI: '/search/multi',
+
+  // TMDB Trending endpoints
+  TMDB_TRENDING_ALL: (timeWindow: 'day' | 'week' = 'week') => `/trending/all/${timeWindow}`,
+  TMDB_TRENDING_MOVIE: (timeWindow: 'day' | 'week' = 'week') => `/trending/movie/${timeWindow}`,
+  TMDB_TRENDING_TV: (timeWindow: 'day' | 'week' = 'week') => `/trending/tv/${timeWindow}`,
+
+  // TMDB Discover endpoints
+  TMDB_DISCOVER_MOVIE: '/discover/movie',
+  TMDB_DISCOVER_TV: '/discover/tv',
+
+  // TMDB Genres
+  TMDB_MOVIE_GENRES: '/genre/movie/list',
+  TMDB_TV_GENRES: '/genre/tv/list',
+};
+
 // Base fetch function for TMDB API
 async function fetchTMDB(endpoint: string, params: Record<string, string | number> = {}) {
-  const url = new URL(`${API_CONFIG.TMDB_BASE_URL}${endpoint}`);
-  url.searchParams.set('api_key', API_CONFIG.TMDB_API_KEY);
+  const url = new URL(`${TMDB_BASE_URL}${endpoint}`);
+  url.searchParams.set('api_key', TMDB_API_KEY);
   url.searchParams.set('language', 'es-ES'); // Spanish language for better localization
   
   Object.entries(params).forEach(([key, value]) => {
